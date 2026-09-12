@@ -57,7 +57,7 @@ class SelfAttention(nn.Module):
         values = self.value(x)
 
         # 2. Compute scaled attention scores.
-        attn_scores = queries @ keys.T
+        attn_scores = queries @ keys.transpose(-2, -1)
 
         # 3. Apply softmax.
         attn_weights = torch.softmax(
