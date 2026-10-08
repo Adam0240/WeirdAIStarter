@@ -1,7 +1,7 @@
 # Weird AI Starter Repository
 
 Weird AI is a parody lyric generation project for an AI Engineering course.
-You should see the badges below move from failing to passing as you work through developing the model.
+You should see the badges below move from failing to passing as you work through developing the model. 
 
 | Lesson                                    | Status                                                                      |
 | ----------------------------------------- | --------------------------------------------------------------------------- |
