@@ -39,13 +39,21 @@ def extract_final_parody(text: str) -> str:
         return the original text with leading/trailing whitespace removed.
     """
 
-    # TODO:
-    # 1. Handle empty or whitespace-only input safely.
-    # 2. Find the last occurrence of FINAL_PARODY_MARKER in the text.
-    # 3. If the marker exists, return everything after it, stripped.
-    # 4. If the marker does not exist, return the original text, stripped.
 
-    raise NotImplementedError("Implement extract_final_parody.")
+    # 1. Handle empty or whitespace-only input safely.
+    if not text or not text.strip():
+        return ""
+
+    # 2. Find the last occurrence of FINAL_PARODY_MARKER in the text.
+    marker_index = text.rfind(FINAL_PARODY_MARKER)
+
+    # 3. If the marker exists, return everything after it, stripped.
+    if marker_index != -1:
+        start_index = marker_index + len(FINAL_PARODY_MARKER)
+        return text[start_index:].strip()
+
+    # 4. If the marker does not exist, return the original text, stripped.
+    return text.strip()
 
 
 def normalize_lyrics(text: str) -> list[str]:
@@ -59,14 +67,17 @@ def normalize_lyrics(text: str) -> list[str]:
         A list of non-empty lines with surrounding whitespace removed.
     """
 
-    # TODO:
     # 1. Split the text into lines.
+    lines = text.splitlines()
+
     # 2. Strip whitespace from each line.
+    lines = [line.strip() for line in lines]
+
     # 3. Remove blank lines.
+    lines = [line for line in lines if line]
+
     # 4. Return the cleaned list of lines.
-
-    raise NotImplementedError("Implement normalize_lyrics.")
-
+    return lines
 
 def calculate_rhyme_score(text: str) -> float:
     """
@@ -81,13 +92,14 @@ def calculate_rhyme_score(text: str) -> float:
         A float from 0.0 to 1.0.
     """
 
-    # TODO:
     # 1. Extract the final parody from the text.
+    parody = extract_final_parody(text)
+
     # 2. Analyze the lyrics using analyze_lyrics().
+    analysis = analyze_lyrics(parody)
+
     # 3. Return the "pairwise_rhyme_score" value as a float.
-
-    raise NotImplementedError("Implement calculate_rhyme_score.")
-
+    return float(analysis["pairwise_rhyme_score"])
 
 def calculate_structure_score(text: str, target_line_count: int = 4) -> float:
     """
@@ -107,16 +119,31 @@ def calculate_structure_score(text: str, target_line_count: int = 4) -> float:
 
     # TODO:
     # 1. Extract the final parody from the text.
+    parody = extract_final_parody(text)
+
     # 2. Normalize the lyrics into clean lines.
+    lines = normalize_lyrics(parody)
+
     # 3. If there are no lines, return 0.0.
+    if not lines:
+        return 0.0
+
     # 4. Use analyze_lyrics() to get the syllable consistency score.
+    analysis = analyze_lyrics(parody)
+    syllable_score = float(analysis["syllable_consistency_score"])
+
     # 5. Calculate a line count score:
-    #       1.0 - min(1.0, abs(actual_line_count - target_line_count) / target_line_count)
+    actual_line_count = len(lines)
+    line_count_score = 1.0 - min(
+        1.0,
+        abs(actual_line_count - target_line_count) / target_line_count
+    )
+
     # 6. Return the average of the line count score and syllable consistency score.
+    structure_score = (line_count_score + syllable_score) / 2
+
     # 7. Clamp the final result between 0.0 and 1.0.
-
-    raise NotImplementedError("Implement calculate_structure_score.")
-
+    return max(0.0, min(1.0, structure_score))
 
 def evaluate_parody(text: str, target_line_count: int = 4) -> dict[str, Any]:
     """
@@ -131,23 +158,38 @@ def evaluate_parody(text: str, target_line_count: int = 4) -> dict[str, Any]:
         scores, an overall score, and a simple pass/fail recommendation.
     """
 
-    # TODO:
     # 1. Extract the final parody.
-    # 2. Normalize the lyrics.
-    # 3. Analyze the extracted parody using analyze_lyrics().
-    # 4. Calculate rhyme_score using calculate_rhyme_score().
-    # 5. Calculate structure_score using calculate_structure_score().
-    # 6. Calculate overall_score as the average of rhyme_score and structure_score.
-    # 7. Set passed to True when overall_score >= 0.60 and there is at least one lyric line.
-    # 8. Return a dictionary with these keys:
-    #       "extracted_text"
-    #       "lines"
-    #       "line_count"
-    #       "rhyme_scheme"
-    #       "syllable_counts"
-    #       "rhyme_score"
-    #       "structure_score"
-    #       "overall_score"
-    #       "passed"
+    parody = extract_final_parody(text)
 
-    raise NotImplementedError("Implement evaluate_parody.")
+    # 2. Normalize the lyrics.
+    lines = normalize_lyrics(parody)
+
+    # 3. Analyze the extracted parody using analyze_lyrics().
+    analysis = analyze_lyrics(parody)
+
+    # 4. Calculate rhyme_score using calculate_rhyme_score().
+    rhyme_score = calculate_rhyme_score(parody)
+
+    # 5. Calculate structure_score using calculate_structure_score().
+    structure_score = calculate_structure_score(parody, target_line_count)
+
+    # 6. Calculate overall_score as the average of rhyme_score and structure_score.
+    overall_score = (rhyme_score + structure_score) / 2
+
+    # 7. Set passed to True when overall_score >= 0.60 and there is at least one lyric line.
+    passed = overall_score >= 0.60 and len(lines) > 0
+
+    # 8. Return a dictionary with these keys:
+    return {
+        "extracted_text": parody,
+        "lines": lines,
+        "line_count": len(lines),
+        "rhyme_scheme": analysis["rhyme_scheme"],
+        "syllable_counts": analysis["syllable_counts"],
+        "rhyme_score": rhyme_score,
+        "structure_score": structure_score,
+        "overall_score": overall_score,
+        "passed": passed,
+    }
+           
+
