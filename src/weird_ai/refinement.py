@@ -43,13 +43,16 @@ class RefinementStep:
 def get_score(evaluation: dict, score_key: str = "overall_score") -> float:
     """Extract a numeric score from an evaluation dictionary."""
 
-    # TODO:
     # 1. Read score_key from the evaluation dictionary.
+    score = evaluation.get(score_key)
+
     # 2. Convert it to a float.
+    try:
+        return float(score)
+
     # 3. If the key is missing or cannot be converted, return 0.0.
-
-    raise NotImplementedError("Implement get_score.")
-
+    except (TypeError, ValueError):
+        return 0.0
 
 def build_refinement_prompt(
     original_prompt: str,
@@ -62,19 +65,45 @@ def build_refinement_prompt(
 ) -> str:
     """Build a prompt asking the model to improve a generated parody."""
 
-    # TODO:
     # 1. Include the original prompt or topic.
+    prompt = f"Original request:\n{original_prompt}\n\n"
+
     # 2. Include the current lyrics.
+    prompt += f"Current lyrics:\n{current_text}\n\n"
+
     # 3. Include the current overall score.
+    score = get_score(evaluation, score_key)
+    prompt += f"Current score: {score}\n\n"
+
     # 4. Include any available evaluation details, such as rhyme, syllables, and structure.
+    prompt += "Evaluation details:\n"
+    for key, value in evaluation.items():
+        if key != score_key:
+            prompt += f"- {key}: {value}\n"
+
     # 5. Include focus items, such as stronger rhymes or more consistent syllables.
+    if focus:
+        prompt += "\nFocus on improving:\n"
+        for item in focus:
+            prompt += f"- {item}\n"
+
     # 6. Include preserve items, such as topic, tone, and approximate length.
+    if preserve:
+        prompt += "\nPreserve the following:\n"
+        for item in preserve:
+            prompt += f"- {item}\n"
+
     # 7. Ask the model to return only the revised lyrics.
     #
     # Keep the prompt specific. "Make it better" is too vague.
+    prompt += (
+        "\nRevise the parody lyrics using the evaluation feedback. "
+        "Improve the rhymes, syllable consistency, and structure "
+        "while maintaining the original topic. "
+        "Return only the revised lyrics without any explanations."
+    )
 
-    raise NotImplementedError("Implement build_refinement_prompt.")
-
+    return prompt
 
 def refine_once(
     original_prompt: str,
@@ -92,18 +121,50 @@ def refine_once(
 ) -> RefinementStep:
     """Run one self-refinement step."""
 
-    # TODO:
     # 1. Evaluate current_text.
+    previous_evaluation = evaluation_func(current_text)
+    previous_score = get_score(previous_evaluation, score_key)
+
     # 2. Build a refinement prompt using build_refinement_prompt.
+    prompt = build_refinement_prompt(
+        original_prompt=original_prompt,
+        current_text=current_text,
+        evaluation=previous_evaluation,
+        focus=focus,
+        preserve=preserve,
+        score_key=score_key,
+    )
+
     # 3. Generate revised text with generation_func.
+    revised_text = generation_func(
+        prompt,
+        temperature=temperature,
+        top_p=top_p,
+        max_new_tokens=max_new_tokens,
+        **kwargs,
+    )
+
     # 4. Evaluate the revised text.
+    revised_evaluation = evaluation_func(revised_text)
+    revised_score = get_score(revised_evaluation, score_key)
+
     # 5. Compare the old score and revised score.
+    accepted = revised_score > previous_score
+
     # 6. Return a RefinementStep.
     #
     # This function should not decide whether to continue the full loop.
     # It only performs one attempt.
-
-    raise NotImplementedError("Implement refine_once.")
+    return RefinementStep(
+        iteration=1,
+        prompt=prompt,
+        previous_text=current_text,
+        revised_text=revised_text,
+        previous_score=previous_score,
+        revised_score=revised_score,
+        accepted=accepted,
+        evaluation=revised_evaluation,
+    )
 
 
 def choose_better_text(
@@ -117,13 +178,23 @@ def choose_better_text(
 ) -> tuple[str, dict, bool]:
     """Decide whether to accept a revised text."""
 
-    # TODO:
     # 1. Compare the current score and revised score.
-    # 2. If require_improvement is True, accept only strictly higher scores.
-    # 3. If require_improvement is False, accept equal scores as well.
-    # 4. Return the selected text, selected evaluation, and whether the revision was accepted.
+    current_score = get_score(current_evaluation, score_key)
+    revised_score = get_score(revised_evaluation, score_key)
 
-    raise NotImplementedError("Implement choose_better_text.")
+    # 2. If require_improvement is True, accept only strictly higher scores.
+    if require_improvement:
+        accepted = revised_score > current_score
+
+    # 3. If require_improvement is False, accept equal scores as well.
+    else:
+        accepted = revised_score >= current_score
+
+    # 4. Return the selected text, selected evaluation, and whether the revision was accepted.
+    if accepted:
+        return revised_text, revised_evaluation, True
+    else:
+        return current_text, current_evaluation, False
 
 
 def should_continue(
@@ -137,14 +208,18 @@ def should_continue(
 ) -> bool:
     """Decide whether the refinement loop should continue."""
 
-    # TODO:
     # 1. Stop if iteration has reached max_iterations.
+    if iteration >= max_iterations:
+        return False
     # 2. Stop if target_score is set and current_score is high enough.
+    if target_score is not None and current_score >= target_score:
+        return False
     # 3. Stop if stop_on_no_improvement is True and last_improved is False.
+    if stop_on_no_improvement and not last_improved:
+        return False
+    
     # 4. Otherwise continue.
-
-    raise NotImplementedError("Implement should_continue.")
-
+    return True
 
 def iterative_refinement(
     original_prompt: str,
@@ -166,28 +241,115 @@ def iterative_refinement(
 ) -> dict:
     """Run the full self-refinement loop."""
 
-    # TODO:
     # 1. Evaluate initial_text.
+    if max_iterations < 1:
+        raise ValueError("max_iterations must be at least 1.")
+
+    initial_evaluation = evaluation_func(initial_text)
+    initial_score = get_score(initial_evaluation, score_key)
+
+    current_text = initial_text
+    current_evaluation = initial_evaluation
+    current_score = initial_score
+
+    iteration = 0
+    last_improved = True
+    iterations = []
+
     # 2. Repeatedly call refine_once until should_continue says to stop.
+    while should_continue(
+        iteration=iteration,
+        max_iterations=max_iterations,
+        current_score=current_score,
+        target_score=target_score,
+        last_improved=last_improved,
+        stop_on_no_improvement=stop_on_no_improvement,
+    ):
+        step = refine_once(
+            original_prompt=original_prompt,
+            current_text=current_text,
+            generation_func=generation_func,
+            evaluation_func=evaluation_func,
+            temperature=temperature,
+            top_p=top_p,
+            max_new_tokens=max_new_tokens,
+            score_key=score_key,
+            focus=focus,
+            preserve=preserve,
+            **kwargs,
+        )
+
     # 3. After each step, keep the better text using choose_better_text.
+        previous_score = current_score
+
+        current_text, current_evaluation, accepted = choose_better_text(
+            current_text=current_text,
+            revised_text=step.revised_text,
+            current_evaluation=current_evaluation,
+            revised_evaluation=step.evaluation,
+            score_key=score_key,
+            require_improvement=require_improvement,
+        )
+
+        current_score = get_score(current_evaluation, score_key)
+        last_improved = current_score > previous_score
+
     # 4. Track every RefinementStep in a list.
+        iteration += 1
+        step.iteration = iteration
+        step.accepted = accepted
+        iterations.append(step)
+
+    # Determine why the refinement loop stopped.
+    if iteration >= max_iterations:
+        stopped_reason = "max_iterations"
+    elif target_score is not None and current_score >= target_score:
+        stopped_reason = "target_score"
+    elif stop_on_no_improvement and not last_improved:
+        stopped_reason = "no_improvement"
+    else:
+        stopped_reason = "completed"
+
     # 5. Return a result dictionary with the initial and final information.
     #
     # Be careful to avoid infinite loops.
-
-    raise NotImplementedError("Implement iterative_refinement.")
+    return {
+        "initial_text": initial_text,
+        "initial_score": initial_score,
+        "initial_evaluation": initial_evaluation,
+        "final_text": current_text,
+        "final_score": current_score,
+        "final_evaluation": current_evaluation,
+        "iterations": iterations,
+        "stopped_reason": stopped_reason,
+    }
 
 
 def summarize_refinement(result: dict) -> str:
     """Create a readable summary of a refinement run."""
 
-    # TODO:
     # 1. Include the initial score and final score.
+    summary = (
+        f"Initial score: {result['initial_score']}\n"
+        f"Final score: {result['final_score']}\n"
+    )
+
     # 2. Include the number of iterations.
+    iterations = result["iterations"]
+    summary += f"Number of iterations: {len(iterations)}\n"
+
     # 3. Include whether each iteration was accepted or rejected.
+    for step in iterations:
+        status = "Accepted" if step.accepted else "Rejected"
+        summary += (
+            f"Iteration {step.iteration}: {status}\n"
+            f"Previous score: {step.previous_score}\n"
+            f"Revised score: {step.revised_score}\n"
+        )
+
     # 4. Include the stopped reason.
     #
     # This is useful for debugging and for showing the tradeoff between extra
     # inference compute and output improvement.
-
-    raise NotImplementedError("Implement summarize_refinement.")
+    summary += f"Stopped reason: {result['stopped_reason']}"
+    return summary
